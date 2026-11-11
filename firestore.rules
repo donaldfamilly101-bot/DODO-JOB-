@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function mine(uid) { return signed() && request.auth.uid == uid; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function isCompany() {
+      return signed() && exists(userPath(request.auth.uid))
+        && get(userPath(request.auth.uid)).data.role == 'company';
+    }
+
+    // Public directory: do not store email, phone, password, PIN or private data here.
+    match /users/{uid} {
+      allow get, list: if true;
+      allow create: if mine(uid)
+        && request.resource.data.keys().hasOnly(['id','first','last','role','country','city'])
+        && request.resource.data.keys().hasAll(['id','first','last','role','country','city'])
+        && request.resource.data.id == uid
+        && request.resource.data.role in ['candidate','company']
+        && request.resource.data.first is string
+        && request.resource.data.last is string
+        && request.resource.data.country is string
+        && request.resource.data.city is string;
+      allow update, delete: if false;
+    }
+
+    // Private user details; Firebase Authentication manages credentials.
+    match /profiles/{uid} {
+      allow get: if mine(uid);
+      allow list: if false;
+      allow create, update: if mine(uid)
+        && !request.resource.data.keys().hasAny(['pin','password','passcode'])
+        && request.resource.data.id == uid
+        && request.resource.data.role in ['candidate','company']
+        && (!exists(userPath(uid)) ||
+            request.resource.data.role == get(userPath(uid)).data.role);
+      allow delete: if mine(uid);
+    }
+
+    match /jobs/{id} {
+      allow read: if true;
+      allow create: if isCompany()
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.id == id;
+      allow update: if isCompany()
+        && resource.data.owner == request.auth.uid
+        && request.resource.data.owner == resource.data.owner
+        && request.resource.data.id == id;
+      allow delete: if isCompany() && resource.data.owner == request.auth.uid;
+    }
+
+    match /drafts/{uid} {
+      allow read: if mine(uid);
+      allow create, update: if mine(uid)
+        && request.resource.data.owner == uid;
+      allow delete: if mine(uid);
+    }
+
+    match /cvs/{uid} {
+      allow get, list: if mine(uid) || resource.data.published == true;
+      allow create, update: if mine(uid)
+        && request.resource.data.owner == uid
+        && request.resource.data.published is bool;
+      allow delete: if mine(uid);
+    }
+
+    match /messages/{id} {
+      allow create: if isCompany()
+        && request.resource.data.keys().hasOnly(['id','from','to','body','read','created'])
+        && request.resource.data.keys().hasAll(['id','from','to','body','read','created'])
+        && request.resource.data.id == id
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && exists(userPath(request.resource.data.to))
+        && get(userPath(request.resource.data.to)).data.role == 'candidate'
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 5000
+        && request.resource.data.read == false
+        && request.resource.data.created is number;
+      allow get, list: if signed()
+        && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow update: if signed()
+        && resource.data.to == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
+      allow delete: if false;
+    }
+  }
+}
