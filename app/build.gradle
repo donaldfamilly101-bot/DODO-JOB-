@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' }
+android { namespace 'com.dodojob.app'; compileSdk 35
+    defaultConfig { applicationId 'com.dodojob.app'; minSdk 23; targetSdk 35; versionCode 17; versionName '17.0' }
+    buildFeatures { buildConfig true }
+    signingConfigs {
+        release {
+            def ks = System.getenv('DODO_KEYSTORE_PATH')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('DODO_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('DODO_KEY_ALIAS')
+                keyPassword System.getenv('DODO_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes { debug { manifestPlaceholders = [admobAppId: 'ca-app-pub-3940256099942544~3347511713'] }; release { manifestPlaceholders = [admobAppId: 'ca-app-pub-7687605449802442~1798162703']; if (System.getenv('DODO_KEYSTORE_PATH')) signingConfig signingConfigs.release } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies {
+    implementation 'com.google.android.gms:play-services-ads:24.6.0'
+    implementation 'com.google.android.ump:user-messaging-platform:3.2.0'
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
