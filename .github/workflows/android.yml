@@ -20,17 +20,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
       - name: Build APK and AAB
-        run: |
-          gradle assembleDebug bundleRelease --stacktrace
+        run: gradle assembleDebug bundleRelease --stacktrace
 
       - name: Save Android files
         if: always()
